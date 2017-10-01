@@ -1,0 +1,229 @@
+---
+title:  Querying Zenodo.org repository with R
+date:  2016-10-18T21:13:14-05:00
+published: true
+tags: ['OAI-PMH', 'zenodo', 'R'] 
+
+liftr:
+  from: rocker/hadleyverse
+  pandoc: false
+  cranpkg:
+    - oai
+  maintainer: Carsten Behring
+  maintainer_email: carsten.behring@gmail.com
+---
+
+
+
+<div id="zenodo" class="section level1">
+<h1>Zenodo</h1>
+<p><a href="http://zenodo.org">Zenodo</a> is a repository which allows everybody to deposit free of charge any type of research output, in all disciplines of science.</p>
+<p>EFSA is piloting it’s use for creating a knowledge base on all types of food safety related evidence(data, documents, models).</p>
+<p>Zenodo has an API and can be queried using the standard OAI-PMH protocol, which allows to harvest the metadata and all deposits.</p>
+</div>
+<div id="oai-package" class="section level1">
+<h1>‘oai’ package</h1>
+<p>R has a package available to query any OAI-PMH repository, including Zenodo. It can be installed from CRAN like this:</p>
+<pre class="r"><code>install.packages(&quot;oai&quot;)</code></pre>
+<p>The development version is available on Github at <a href="https://github.com/ropensci/oai" class="uri">https://github.com/ropensci/oai</a></p>
+<p>The libraries I use in this tutorial are:</p>
+<pre class="r"><code>library(knitr)
+library(tidyverse)
+library(httr)
+library(oai)
+library(xml2)
+opts_chunk$set(echo=T)</code></pre>
+</div>
+<div id="retreive-records-from-zenodo" class="section level1">
+<h1>Retreive records from Zenodo</h1>
+<p>The oai package allows to retrieve all records of a given Zenodo community, in this case the EFSA pilot community. The following code shows all records of a community with their digital object identifier and the title.</p>
+<pre class="r"><code>record_list&lt;- list_records(&quot;https://zenodo.org/oai2d&quot;,metadataPrefix=&quot;oai_datacite&quot;,set=&quot;user-efsa-pilot&quot;)
+
+kable(record_list %&gt;% select(identifier.3,title))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">identifier.3</th>
+<th align="left">title</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><a href="https://zenodo.org/record/57017" class="uri">https://zenodo.org/record/57017</a></td>
+<td align="left">PRIMo rev.1 – Pesticide Residue Intake Model</td>
+</tr>
+</tbody>
+</table>
+<p>Currently there are 1 records available.</p>
+<div id="statistics-on-keywords" class="section level2">
+<h2>Statistics on keywords</h2>
+<div id="query-records-from-zenodo" class="section level3">
+<h3>Query records from Zenodo</h3>
+<p>I was further on interested in the current distribution of keywords each record was tagged with. Zenodo supports two types of keywords. Simple free text keywords and ‘subjects’. Subjects need to come from a controlled vocabulary, in which each topic has an URI.</p>
+<p>EFSA uses the <a href="http://browser.agrisemantics.org/gacs/en/">GACS</a> vocabulary, and so a certain topic ‘salmonella’ is represented as URI ‘<a href="http://browser.agrisemantics.org/gacs/en/page/C2225" class="uri">http://browser.agrisemantics.org/gacs/en/page/C2225</a>’.</p>
+<p>The API returns therefore for the subjects only the URI, which is nicely unique and clear but not user friendly as a label. On the URI of each ‘subject’, additional information is available.</p>
+<p>The following code retrieves all records and extract all their subjects (which have a Xpath of //d3:subject). The current oai package has some problems with some Zenodo specific metadata, so I parse the raw XML by hand.</p>
+<p>The OIA-PMH standard and the oai::get_records function, allow the client to select, in which metadata format he wants to receive the metadata. Here I have selected ‘oai-datacite’, because it is recommended from the Zenodo API <a href="https://zenodo.org/dev#harvest-metadata">documenation</a> and should contain <em>all</em> metadata Zenodo supports, while other metadata formats might only support a smaller subset.</p>
+<pre class="r"><code>record_data_xml &lt;- get_records(record_list$identifier,url=&quot;https://zenodo.org/oai2d&quot;,prefix=&quot;oai_datacite&quot;,as=&quot;raw&quot;)  
+keyword_counts &lt;- record_data_xml %&gt;%
+    map(read_xml) %&gt;%
+    map(xml_find_all,&quot;//d3:subject&quot;) %&gt;%
+    map(xml_text) %&gt;%
+    reduce(c) %&gt;%
+    table() %&gt;%
+    tbl_df()
+kable(keyword_counts %&gt;% filter(grepl(&quot;.*C22.*|^food&quot;,`.`)))</code></pre>
+<p>. n — —</p>
+<p>I use the ‘map’ function from the ‘purrr’ package to apply to every vector in the result (which is first an xml string) a number of transformations:</p>
+<ol style="list-style-type: decimal">
+<li>read_xml() - to convert from string to class xml_document</li>
+<li>xml_find_all() - to find all xml nodes given by xpath expression</li>
+<li>xml_text() - get the text from the xml node</li>
+</ol>
+<p>Then I combine all this via c() and the reduce() function to obtain a single list of all subjects.</p>
+<p>The API returns both types of subjects, the generic keywords and the terms referring to a controlled vocabulary.</p>
+<p>The table() command produces then a frequency table for them, of which I show here a subset. We have in this table entries with an English label, and some with the GACS URI.</p>
+</div>
+<div id="add-human-readable-label-to-gacs-topics" class="section level3">
+<h3>Add human readable label to GACS topics</h3>
+<p>To add a human readable label to each GACS URI, I use the GACS API which allows to query information on each topic. So I call the API for each URI and make a table where each row contains a list of (URI,label). This gets the converted into a table with bind_rows()</p>
+<p>I use again the ‘map’ function with an anonymous function, which does the call to the GACS API. GACS uses the (Skomsos)[<a href="https://github.com/NatLibFi/Skosmos" class="uri">https://github.com/NatLibFi/Skosmos</a>] software, so has an (API)[<a href="http://api.finto.fi/doc/" class="uri">http://api.finto.fi/doc/</a>] to query the vocabulary.</p>
+<pre class="r"><code>gacs &lt;- keyword_counts %&gt;% filter(grepl(&quot;*gacs*&quot;,.))
+
+gacs_label_en &lt;- map(gacs$`.`,function(uri) {
+
+    r=GET(&quot;http://browser.agrisemantics.org/rest/v1/gacs/label&quot;,query=list(uri=uri,lang=&quot;en&quot;))
+    list(uri=uri,label=content(r)$prefLabel)
+    
+}) %&gt;%
+    bind_rows()
+kable(gacs_label_en[1:5,])</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">uri</th>
+<th align="left">label</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><a href="http://id.agrisemantics.org/gacs/C1470" class="uri">http://id.agrisemantics.org/gacs/C1470</a></td>
+<td align="left">risk assessment</td>
+</tr>
+<tr class="even">
+<td align="left"><a href="http://id.agrisemantics.org/gacs/C29232" class="uri">http://id.agrisemantics.org/gacs/C29232</a></td>
+<td align="left">exposure assessment</td>
+</tr>
+<tr class="odd">
+<td align="left"><a href="http://id.agrisemantics.org/gacs/C3009" class="uri">http://id.agrisemantics.org/gacs/C3009</a></td>
+<td align="left">pesticide residues</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="distributions-of-labels-in-efsa-pilot-community" class="section level2">
+<h2>Distributions of labels in efsa-pilot community</h2>
+<p>To get the final table, I join the label-GACS pairs with the former table and do some clean-up with the functions from tidyr package.</p>
+<p>The table is then sorted by frequency and shown on the screen.</p>
+<p>As we can see, the most frequent words are ‘risk assessment’ and ‘exposure assessment’, which is no surprise as these is the core of EFSA’s scientific work.</p>
+<pre class="r"><code>table &lt;- left_join(keyword_counts,gacs_label_en,by=c(&quot;.&quot;=&quot;uri&quot;)) %&gt;% 
+  replace_na(list(label=&quot;&quot;)) %&gt;%
+  unite(&quot;label&quot;,c(label,`.`),sep=&quot; - &quot;) %&gt;%
+  mutate(label = gsub(&quot;^ - &quot;,&quot;&quot;,label)) %&gt;%
+  rename(count=n) %&gt;%
+  arrange(-count)
+
+write.csv(table,&quot;keywords.csv&quot;,row.names = F)
+knitr::kable(table %&gt;% slice(1:20))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">label</th>
+<th align="right">count</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">acute risk assesment</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">chronic risk assesment</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">risk assessment - <a href="http://id.agrisemantics.org/gacs/C1470" class="uri">http://id.agrisemantics.org/gacs/C1470</a></td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">exposure assessment - <a href="http://id.agrisemantics.org/gacs/C29232" class="uri">http://id.agrisemantics.org/gacs/C29232</a></td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">pesticide residues - <a href="http://id.agrisemantics.org/gacs/C3009" class="uri">http://id.agrisemantics.org/gacs/C3009</a></td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">Regulation (EC) No 396/2005</td>
+<td align="right">1</td>
+</tr>
+</tbody>
+</table>
+<p>To monitor regularly this distribution can help in keeping the list of all keywords clean and eventually propose additional subjects to the GACS vocabulary.</p>
+</div>
+</div>
+<div id="session-info" class="section level1">
+<h1>Session info</h1>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.4.1 (2017-06-30)
+## Platform: x86_64-pc-linux-gnu (64-bit)
+## Running under: Arch Linux
+## 
+## Matrix products: default
+## BLAS: /usr/lib/libblas_nehalemp-r0.2.19.so
+## LAPACK: /usr/lib/liblapack.so.3.7.1
+## 
+## locale:
+##  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+##  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+##  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+##  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+##  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+## [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+## 
+## attached base packages:
+## [1] methods   stats     graphics  grDevices utils     datasets  base     
+## 
+## other attached packages:
+##  [1] bindrcpp_0.2      xml2_1.1.1        oai_0.2.2        
+##  [4] httr_1.3.1        dplyr_0.7.3.9000  purrr_0.2.3      
+##  [7] readr_1.1.1       tidyr_0.7.1       tibble_1.3.4.9001
+## [10] ggplot2_2.2.1     tidyverse_1.1.1   knitr_1.17       
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_0.12.12      highr_0.6         cellranger_1.1.0 
+##  [4] compiler_3.4.1    pillar_0.0.0.9000 plyr_1.8.4       
+##  [7] bindr_0.1         forcats_0.2.0     tools_3.4.1      
+## [10] digest_0.6.12     lubridate_1.6.0   jsonlite_1.5     
+## [13] evaluate_0.10.1   nlme_3.1-131      gtable_0.2.0     
+## [16] lattice_0.20-35   pkgconfig_2.0.1   rlang_0.1.2      
+## [19] psych_1.7.8       yaml_2.1.14       parallel_3.4.1   
+## [22] haven_1.1.0       blogdown_0.1.4    stringr_1.2.0    
+## [25] hms_0.3           tidyselect_0.2.0  rprojroot_1.2    
+## [28] grid_3.4.1        glue_1.1.1        R6_2.2.2         
+## [31] readxl_1.0.0      foreign_0.8-69    rmarkdown_1.6    
+## [34] bookdown_0.5      modelr_0.1.1      reshape2_1.4.2   
+## [37] magrittr_1.5      scales_0.5.0      backports_1.1.0  
+## [40] htmltools_0.3.6   rvest_0.3.2       assertthat_0.2.0 
+## [43] mnormt_1.5-5      colorspace_1.3-2  stringi_1.1.5    
+## [46] lazyeval_0.2.0    munsell_0.4.3     broom_0.4.2</code></pre>
+</div>

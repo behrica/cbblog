@@ -1,0 +1,747 @@
+---
+title: "Mapping EFSA's food consumption data with tmap"
+date:  2016-10-13T21:13:14-05:00
+tags: ['R', 'food consumption data', 'maps', 'EFSA']
+liftr:
+  cranpkg: tmap
+  from: rocker/hadleyverse
+  maintainer: Carsten Behring
+  maintainer_email: carsten.behring@gmail.com
+  pandoc: no
+---
+
+
+
+<div id="disclaimer" class="section level1">
+<h1>Disclaimer</h1>
+<p><em>The opinions expressed in the article are those of the author(s) only, and may not necessarily represent the views of EFSA or of any other EU Institution or body.</em></p>
+</div>
+<div id="efsas-food-consumption-data" class="section level1">
+<h1>EFSA’s food consumption data</h1>
+<p>The European Food Safety Authority collects food consumption data from all EU countries and and integrates them in their database. The data is based on country specific surveys, in which individuals get interviewed about their food consumption habits. This data is used for EFSA’s risk assessments as part of the exposure assessment.</p>
+</div>
+<div id="accessing-the-data" class="section level1">
+<h1>Accessing the data</h1>
+<p>The data is available from EFSA’s website <a href="http://www.efsa.europa.eu/en/food-consumption/comprehensive-database" class="uri">http://www.efsa.europa.eu/en/food-consumption/comprehensive-database</a> in form of Excel files.</p>
+<p>I selected for this tutorial the file of the “Chronic food consumption statistics” - “grams per day” - “all subjects”.</p>
+<p>The following code reads the data from the EFSA website and writes it to a local file. The file contains 4 sheets and we select the last one, which contains data on the lowest foodex level 4.</p>
+<p>First download and cache it,</p>
+<pre class="r"><code>if (!file.exists(&quot;chronicgdaytotpop.xlsx&quot;))
+  download.file(&quot;http://www.efsa.europa.eu/sites/default/files/chronicgdaytotpop.xlsx&quot;,&quot;chronicgdaytotpop.xlsx&quot;)</code></pre>
+<p>and the read it into R. The I fix a different spelling in the data versus the shape files to be used later for the map.</p>
+<pre class="r"><code>data &lt;- read_excel(&quot;./chronicgdaytotpop.xlsx&quot;,&quot;L4_All_subjects_g_day&quot;,skip=2) 
+names(data) &lt;- gsub(x = names(data),
+                        pattern = &quot;[[:space:]]|[[:punct:]]&quot;,
+                        replacement = &quot;_&quot;,
+                    perl = F)
+data &lt;- data %&gt;%
+  fixCountries</code></pre>
+</div>
+<div id="description-of-data" class="section level1">
+<h1>Description of data</h1>
+<p>The data is organised ‘per country’, ‘per survey’,‘per population class’ and ‘per food group’. The food classification follows the Foodex<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a> standard developed by EFSA, which is a hierarchical system for classifying food. The current data set contains the most detailed foodex levels (3 and 4)</p>
+<p>The ‘Mean’ column contains then the mean consumption in grams per day of this food among the participants of the survey. Additionally to the mean other statistics about the distribution of the food intake are given (standard deviation, percentiles)</p>
+<p>We can interpret a single row, such as:</p>
+<pre class="r"><code>data %&gt;% filter(Foodex_L4 == &#39;Couscous&#39;) %&gt;% 
+  filter(row_number()==1) %&gt;% 
+  glimpse</code></pre>
+<pre><code>## Observations: 1
+## Variables: 17
+## $ Country      &lt;chr&gt; &quot;Austria&quot;
+## $ Survey       &lt;chr&gt; &quot;Austrian Study on Nutritional Status 2010-12 - A...
+## $ Pop_Class    &lt;chr&gt; &quot;Adults&quot;
+## $ Foodex_L3    &lt;chr&gt; &quot;Wheat milling products&quot;
+## $ Foodex_L4    &lt;chr&gt; &quot;Couscous&quot;
+## $ Metrics      &lt;chr&gt; &quot;A.01.000051&quot;
+## $ Nr_Subjects  &lt;dbl&gt; 308
+## $ Nr_Consumers &lt;dbl&gt; 7
+## $ Mean         &lt;dbl&gt; 1.280844
+## $ STD          &lt;dbl&gt; 9.331736
+## $ P5           &lt;dbl&gt; 0
+## $ P10          &lt;dbl&gt; 0
+## $ Median       &lt;dbl&gt; 0
+## $ P95          &lt;dbl&gt; 0
+## $ P97_5        &lt;dbl&gt; 0
+## $ P99          &lt;dbl&gt; 56
+## $ Comment      &lt;lgl&gt; NA</code></pre>
+<p>in the following way:</p>
+<p>There was a food consumption survey with name ‘Austrian Study on Nutritional Status 2010-12 - Adults’ run in ‘Austria’. One group of ‘308’ ‘Adults’ was surveyed and the ‘Mean’ food consumption of food ‘Couscous’ in that group was ‘1.28’ g intake per day. There are some more variables for the distribution of the daily intake. Note the large standard deviation, which means that the eating habits of ‘Couscous’ various a lot.</p>
+</div>
+<div id="analysis-of-standart-deviation" class="section level1">
+<h1>Analysis of standart deviation</h1>
+<p>One interesting question on this data is, which food are distributed evenly, so most individuals eat them in similar proportions. One potential interpretation of those, is to say that these are the food which are ‘eaten in all of Europe, in all ages’ in the same quantities.</p>
+<p>Lets find those with dplyr, like this:</p>
+<pre class="r"><code>stds &lt;- data %&gt;% group_by(Foodex_L4) %&gt;% 
+  filter(Mean &gt; 5) %&gt;% 
+  summarise(STD=mean(STD),mean=mean(Mean)) %&gt;% 
+  arrange(STD) %&gt;% 
+  head(20)
+knitr::kable(stds)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Foodex_L4</th>
+<th align="right">STD</th>
+<th align="right">mean</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Salt, iodised</td>
+<td align="right">3.092542</td>
+<td align="right">6.313222</td>
+</tr>
+<tr class="even">
+<td align="left">Salt</td>
+<td align="right">4.000443</td>
+<td align="right">8.159481</td>
+</tr>
+<tr class="odd">
+<td align="left">Rice starch</td>
+<td align="right">5.130434</td>
+<td align="right">6.681824</td>
+</tr>
+<tr class="even">
+<td align="left">Fructose</td>
+<td align="right">5.279714</td>
+<td align="right">6.063511</td>
+</tr>
+<tr class="odd">
+<td align="left">Oil, frying, blend</td>
+<td align="right">6.041108</td>
+<td align="right">6.292762</td>
+</tr>
+<tr class="even">
+<td align="left">Cocoa powder</td>
+<td align="right">6.304501</td>
+<td align="right">6.495044</td>
+</tr>
+<tr class="odd">
+<td align="left">Jelly candies</td>
+<td align="right">6.926092</td>
+<td align="right">5.243410</td>
+</tr>
+<tr class="even">
+<td align="left">Margarine and similar products</td>
+<td align="right">7.385982</td>
+<td align="right">7.290324</td>
+</tr>
+<tr class="odd">
+<td align="left">Cream 40 % fat</td>
+<td align="right">7.488790</td>
+<td align="right">6.402034</td>
+</tr>
+<tr class="even">
+<td align="left">Parsley root (Petroselinum crispum)</td>
+<td align="right">7.644194</td>
+<td align="right">11.049928</td>
+</tr>
+<tr class="odd">
+<td align="left">Duck meat (Anas spp.)</td>
+<td align="right">7.887929</td>
+<td align="right">5.294000</td>
+</tr>
+<tr class="even">
+<td align="left">Tomato ketchup</td>
+<td align="right">7.911607</td>
+<td align="right">5.703227</td>
+</tr>
+<tr class="odd">
+<td align="left">Coffee beans, roasted and ground</td>
+<td align="right">8.036786</td>
+<td align="right">7.561675</td>
+</tr>
+<tr class="even">
+<td align="left">Cooked sausage</td>
+<td align="right">8.102821</td>
+<td align="right">5.397307</td>
+</tr>
+<tr class="odd">
+<td align="left">Cheese, Parmigiano Reggiano</td>
+<td align="right">8.367041</td>
+<td align="right">7.220518</td>
+</tr>
+<tr class="even">
+<td align="left">Salad dressing, 25 - 50% oil</td>
+<td align="right">8.407296</td>
+<td align="right">5.696910</td>
+</tr>
+<tr class="odd">
+<td align="left">Breadcrumbs</td>
+<td align="right">8.685303</td>
+<td align="right">6.797546</td>
+</tr>
+<tr class="even">
+<td align="left">Spring onions, bulb (Allium cepa)</td>
+<td align="right">8.739136</td>
+<td align="right">5.635335</td>
+</tr>
+<tr class="odd">
+<td align="left">Plaice (Pleuronectes)</td>
+<td align="right">8.758317</td>
+<td align="right">5.157403</td>
+</tr>
+<tr class="even">
+<td align="left">Jam, Raspberries (Rubus idaeus)</td>
+<td align="right">8.949646</td>
+<td align="right">8.119948</td>
+</tr>
+</tbody>
+</table>
+<p>So it seems that all Europeans agree on eating similar portions of :</p>
+<ul>
+<li>salt</li>
+<li>rice starch</li>
+<li>fructose</li>
+<li>Oil</li>
+<li>Cream</li>
+<li>tomato ketchup</li>
+<li>coffee</li>
+<li>cooked sausage</li>
+</ul>
+<p>and others.</p>
+</div>
+<div id="prepare-data-for-mapping" class="section level1">
+<h1>Prepare data for mapping</h1>
+<p>For mapping purposes we can now decide which food group we want to use, ‘Jam’ in this case, and need to decide, how to aggregate the data of the different surveys and population groups. In this case I take the most simple approach, which is to average over all surveys and population groups.</p>
+<p>This is good enough for illustrative purposes, but a exposure assessment based on this data needed to find a more sophisticated strategy in order to consider methodological differences between the studies.</p>
+<p>A more detailed explained on how to use this data, see EFSA’s website.<a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a></p>
+<pre class="r"><code>jam &lt;- data %&gt;% filter(Foodex_L4==&#39;Jam&#39;) %&gt;% 
+  group_by(Country) %&gt;% 
+  summarise(food_mean=mean(Mean,na.rm = T))</code></pre>
+<p>The data is now in a format, ready to be presented in a pan European map, having a single value per country.</p>
+<pre class="r"><code>knitr::kable(jam)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Country</th>
+<th align="right">food_mean</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Austria</td>
+<td align="right">5.2262848</td>
+</tr>
+<tr class="even">
+<td align="left">Belgium</td>
+<td align="right">7.3638807</td>
+</tr>
+<tr class="odd">
+<td align="left">Bulgaria</td>
+<td align="right">0.0318451</td>
+</tr>
+<tr class="even">
+<td align="left">Cyprus</td>
+<td align="right">0.9350935</td>
+</tr>
+<tr class="odd">
+<td align="left">Czech Rep.</td>
+<td align="right">3.6384642</td>
+</tr>
+<tr class="even">
+<td align="left">Denmark</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Finland</td>
+<td align="right">1.3505814</td>
+</tr>
+<tr class="even">
+<td align="left">France</td>
+<td align="right">6.2648030</td>
+</tr>
+<tr class="odd">
+<td align="left">Germany</td>
+<td align="right">5.7111286</td>
+</tr>
+<tr class="even">
+<td align="left">Greece</td>
+<td align="right">0.6074363</td>
+</tr>
+<tr class="odd">
+<td align="left">Hungary</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Ireland</td>
+<td align="right">0.1185676</td>
+</tr>
+<tr class="odd">
+<td align="left">Italy</td>
+<td align="right">1.7422288</td>
+</tr>
+<tr class="even">
+<td align="left">Latvia</td>
+<td align="right">1.7141950</td>
+</tr>
+<tr class="odd">
+<td align="left">Netherlands</td>
+<td align="right">4.5594901</td>
+</tr>
+<tr class="even">
+<td align="left">Romania</td>
+<td align="right">3.9689273</td>
+</tr>
+<tr class="odd">
+<td align="left">Spain</td>
+<td align="right">0.4005222</td>
+</tr>
+<tr class="even">
+<td align="left">Sweden</td>
+<td align="right">3.0928232</td>
+</tr>
+<tr class="odd">
+<td align="left">United Kingdom</td>
+<td align="right">1.1951599</td>
+</tr>
+</tbody>
+</table>
+<p>For this tutorial we will use the tmap package. It comes already with a shape file of Europe. First we will restrict it to EU countries:</p>
+<pre class="r"><code>Europe.eu &lt;- Europe[Europe$EU_Schengen %in% c(&quot;EU Schengen&quot;,&quot;EU Schengen cand.&quot;,
+                                              &quot;EU Non-Schengen&quot;),]</code></pre>
+<p>The tmap library allows to append this data easily to an existing European shape file, by using the ‘append_data’ function.</p>
+<p>As the spelling of ‘Czech Republic’ in the data does not match the shape file, we rename it here.</p>
+<pre class="r"><code>jam &lt;- jam %&gt;% 
+  ungroup() %&gt;%
+  mutate(Country=ifelse(Country==&#39;Czech Republic&#39;,&#39;Czech Rep.&#39;,Country))
+Europe.jam &lt;- append_data(Europe.eu,as.data.frame(jam),key.shp = &#39;name&#39;,key.data = &quot;Country&quot;)
+Europe.jam$income_grp &lt;- as.character(Europe.jam$income_grp)
+write_shape(Europe.jam,&quot;europe_jam.shp&quot;)
+zip(&quot;europe_jam_shp.zip&quot;,dir(&quot;.&quot;,&quot;europe_jam.*&quot;))</code></pre>
+<p>The ‘key.shp’ and ‘key.data’ parameter specify, on which columns the data and the shape file should be joined.</p>
+</div>
+<div id="showing-a-pan-european-map-of-food-consumption-data" class="section level1">
+<h1>Showing a pan european map of food consumption data</h1>
+<div id="a-simple-map-of-one-food-item" class="section level2">
+<h2>A simple map of one food item</h2>
+<p>The data can now be shown on the screen as a simple map, containing one layer which represents the mean food consumption of ‘jam’, where the quantity is represented as color of the country polygon, increasing the level of darkness of the color by increased consumption.</p>
+<pre class="r"><code>tm_shape(Europe.jam) +
+  tm_polygons(col=&#39;food_mean&#39;,title = &quot;Jam consumption (mg/day)&quot;) +
+  tm_format_Europe_wide()</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-9-1.png" width="1440" /></p>
+<p>This map show, that France and Germany seems to be the top Jam consumers.</p>
+</div>
+<div id="a-more-advanced-map" class="section level2">
+<h2>A more advanced map</h2>
+<p>We can easily add extra information to the map, like the ISO code of the countries, which are in column ‘iso_a3’ of the shape file. We do this by adding a text layer with ‘tm_text’, specifying which column of the shape file contains the textual information to show.</p>
+<pre class="r"><code>tm_shape(Europe.jam) +
+  tm_polygons(col=&#39;food_mean&#39;,title = &quot;Jam consumption (mg/day)&quot;) +
+  tm_text(&#39;iso_a3&#39;,size = .5,
+          col = &quot;black&quot;,
+         bg.color = &quot;white&quot;) +
+    tm_format_Europe_wide()</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-10-1.png" width="1440" /></p>
+</div>
+<div id="showing-multiple-maps" class="section level2">
+<h2>Showing multiple maps</h2>
+<p>The following code shows one of the strength of using tmap, which is the very easy creation of multiple maps. Let’s see how to show 4 maps, each with a different food.</p>
+<p>First we filter the data by the 4 foods, and then we transform it from ‘long’ to ‘wide’ format with the ‘tidyr’ packages.</p>
+<pre class="r"><code>food_data &lt;- data %&gt;% 
+  collect %&gt;%
+  filter(Foodex_L4 %in% c(&#39;Wheat grain&#39;,&#39;Jam&#39;,&#39;Couscous&#39;,&#39;Dried fruits&#39;)) %&gt;% 
+  group_by(Country,Foodex_L4) %&gt;% 
+  summarise(food_mean=mean(Mean,na.rm = T))
+  
+food_data &lt;- food_data %&gt;% 
+  spread(&quot;Foodex_L4&quot;,&#39;food_mean&#39;) %&gt;%
+  ungroup() %&gt;%
+  mutate(Country=ifelse(Country==&#39;Czech Republic&#39;,&#39;Czech Rep.&#39;,Country))</code></pre>
+<p>This results in a table, which has one column per food:</p>
+<pre class="r"><code>knitr::kable(food_data)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Country</th>
+<th align="right">Couscous</th>
+<th align="right">Dried fruits</th>
+<th align="right">Jam</th>
+<th align="right">Wheat grain</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Austria</td>
+<td align="right">0.2876738</td>
+<td align="right">0.1139407</td>
+<td align="right">5.2262848</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Belgium</td>
+<td align="right">0.5355902</td>
+<td align="right">0.0032250</td>
+<td align="right">7.3638807</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Bulgaria</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0318451</td>
+<td align="right">0.0826588</td>
+</tr>
+<tr class="even">
+<td align="left">Cyprus</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.9350935</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Czech Rep.</td>
+<td align="right">0.0000000</td>
+<td align="right">0.2356088</td>
+<td align="right">3.6384642</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Denmark</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0001695</td>
+</tr>
+<tr class="odd">
+<td align="left">Finland</td>
+<td align="right">0.0303171</td>
+<td align="right">0.0333622</td>
+<td align="right">1.3505814</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">France</td>
+<td align="right">4.6042196</td>
+<td align="right">0.0000000</td>
+<td align="right">6.2648030</td>
+<td align="right">1.2603470</td>
+</tr>
+<tr class="odd">
+<td align="left">Germany</td>
+<td align="right">0.0124737</td>
+<td align="right">0.1177921</td>
+<td align="right">5.7111286</td>
+<td align="right">0.0356976</td>
+</tr>
+<tr class="even">
+<td align="left">Greece</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.6074363</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Hungary</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Ireland</td>
+<td align="right">0.1457767</td>
+<td align="right">0.2361331</td>
+<td align="right">0.1185676</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Italy</td>
+<td align="right">0.0589026</td>
+<td align="right">0.0006176</td>
+<td align="right">1.7422288</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Latvia</td>
+<td align="right">0.0000000</td>
+<td align="right">0.5121008</td>
+<td align="right">1.7141950</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">Netherlands</td>
+<td align="right">0.0629168</td>
+<td align="right">0.0725512</td>
+<td align="right">4.5594901</td>
+<td align="right">0.0069556</td>
+</tr>
+<tr class="even">
+<td align="left">Romania</td>
+<td align="right">0.0355434</td>
+<td align="right">0.0000000</td>
+<td align="right">3.9689273</td>
+<td align="right">0.0018987</td>
+</tr>
+<tr class="odd">
+<td align="left">Spain</td>
+<td align="right">0.0000000</td>
+<td align="right">0.0129597</td>
+<td align="right">0.4005222</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">Sweden</td>
+<td align="right">0.2039704</td>
+<td align="right">0.2110512</td>
+<td align="right">3.0928232</td>
+<td align="right">0.0230651</td>
+</tr>
+<tr class="odd">
+<td align="left">United Kingdom</td>
+<td align="right">0.5319579</td>
+<td align="right">0.1647893</td>
+<td align="right">1.1951599</td>
+<td align="right">0.0044839</td>
+</tr>
+</tbody>
+</table>
+<p>This new data frame will be merged with the shape file</p>
+<pre class="r"><code>Europe.4foods &lt;- append_data(Europe.eu,as.data.frame(food_data),key.shp = &#39;name&#39;,key.data = &quot;Country&quot;)</code></pre>
+<p>and then be plotted as 4 maps, by just using a vector with the column names in the ‘col’ argument of tm_polygons. This will plot one map for each column name in the vector.</p>
+<pre class="r"><code>tm_shape(Europe.4foods) + 
+  tm_polygons(col=c(&#39;Jam&#39;,&#39;Wheat grain&#39;,&#39;Couscous&#39;,&#39;Dried fruits&#39;),n=3) +
+  tm_format_Europe(legend.position = c(&quot;left&quot;,&quot;top&quot;))</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-14-1.png" width="1440" /></p>
+</div>
+</div>
+<div id="map-of-people-surveyed" class="section level1">
+<h1>Map of people surveyed</h1>
+<p>An other type of information which can be extracted from the data set, is information about the food consumption surveys. The following code counts the number of individuals, which were surveyed per country. In case of various surveys, I just sum it up.</p>
+<pre class="r"><code>peopleSurveyed &lt;- data %&gt;% 
+  group_by(Survey,Pop_Class) %&gt;% 
+  filter(row_number()==1) %&gt;% 
+  select(Country,Survey,Nr_Subjects,Pop_Class) %&gt;% 
+  group_by(Country) %&gt;% 
+  summarise(numSubjects=sum(Nr_Subjects))
+  
+
+kable(peopleSurveyed)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Country</th>
+<th align="right">numSubjects</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Austria</td>
+<td align="right">765</td>
+</tr>
+<tr class="even">
+<td align="left">Belgium</td>
+<td align="right">3744</td>
+</tr>
+<tr class="odd">
+<td align="left">Bulgaria</td>
+<td align="right">1720</td>
+</tr>
+<tr class="even">
+<td align="left">Cyprus</td>
+<td align="right">303</td>
+</tr>
+<tr class="odd">
+<td align="left">Czech Rep.</td>
+<td align="right">2353</td>
+</tr>
+<tr class="even">
+<td align="left">Denmark</td>
+<td align="right">8563</td>
+</tr>
+<tr class="odd">
+<td align="left">Finland</td>
+<td align="right">7482</td>
+</tr>
+<tr class="even">
+<td align="left">France</td>
+<td align="right">4079</td>
+</tr>
+<tr class="odd">
+<td align="left">Germany</td>
+<td align="right">16875</td>
+</tr>
+<tr class="even">
+<td align="left">Greece</td>
+<td align="right">903</td>
+</tr>
+<tr class="odd">
+<td align="left">Hungary</td>
+<td align="right">1360</td>
+</tr>
+<tr class="even">
+<td align="left">Ireland</td>
+<td align="right">2458</td>
+</tr>
+<tr class="odd">
+<td align="left">Italy</td>
+<td align="right">3323</td>
+</tr>
+<tr class="even">
+<td align="left">Latvia</td>
+<td align="right">2913</td>
+</tr>
+<tr class="odd">
+<td align="left">Netherlands</td>
+<td align="right">6587</td>
+</tr>
+<tr class="even">
+<td align="left">Romania</td>
+<td align="right">1382</td>
+</tr>
+<tr class="odd">
+<td align="left">Spain</td>
+<td align="right">2909</td>
+</tr>
+<tr class="even">
+<td align="left">Sweden</td>
+<td align="right">5498</td>
+</tr>
+<tr class="odd">
+<td align="left">United Kingdom</td>
+<td align="right">7480</td>
+</tr>
+</tbody>
+</table>
+<p>This can be plotted as a bar chart, to compare easily the number of individuals surveyed. As we can see, there are large differences between them. Some Nordic countries have each surveyed more then 5000 individuals, while others have below 1000.</p>
+<pre class="r"><code>ggplot(peopleSurveyed) +
+  geom_bar(aes(x = reorder(Country,numSubjects),
+               y = numSubjects), 
+           stat = &#39;identity&#39;
+          ) + 
+  coord_flip()</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-16-1.png" width="1440" /></p>
+<p>The same data shown as map shows a rather clear difference between north and southern Europe. Does this mean that the (richer) Nordic countries invest more money in food consumption surveys ? Or is it related to population (only) ?</p>
+<p>A first hint to this question is to look at number of individuals together with GDP and population of a country.</p>
+<pre class="r"><code>Europe.surveyed &lt;- append_data(Europe.eu,peopleSurveyed,key.shp = &#39;name&#39;,key.data = &quot;Country&quot;)
+tm_shape(Europe.surveyed) +
+  tm_polygons(&quot;numSubjects&quot;,n = 10,title = &quot;# individuals&quot;) +
+tm_shape(Europe.surveyed) +
+  tm_bubbles(col = &#39;pop_est&#39;,
+             size = &quot;gdp_cap_est&quot;,
+             title.col = &#39;Population estimated&#39;,
+             title.size = &quot;GDP estimated&quot;,
+             palette = &quot;Blues&quot;,
+             contrast = c(0.5,1),
+             n = 5) +
+  tm_format_Europe_wide()</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-17-1.png" width="1440" /></p>
+</div>
+<div id="who-eats-most-vegetables" class="section level1">
+<h1>Who eats most vegetables ?</h1>
+<p>By filtering data dependent on the highes L1 foodex level, we can get an glimpse on meat vs. non meat consumption in Europe.</p>
+<pre class="r"><code>tmap_mode(&quot;plot&quot;)
+
+data.l1 &lt;- read_excel(&quot;./chronicgdaytotpop.xlsx&quot;,&quot;L1_All_subjects_g_day&quot;,skip=2) %&gt;%
+  tbl_df() %&gt;%
+  fixCountries
+ 
+
+data.veg &lt;- data.l1 %&gt;% filter(!`Foodex L1` %in% 
+                                 c(&quot;Meat and meat products (including edible offal)&quot;,
+                                   &quot;Fish and other seafood (including amphibians, rept&quot;,
+                                   &quot;Milk and dairy products&quot;,&quot;Eggs and egg products&quot;,
+                                   &quot;Animal and vegetable fats and oils&quot;))
+
+veg.country &lt;- data.veg %&gt;% group_by(Country) %&gt;% summarize(mean=mean(Mean)) %&gt;% arrange(mean)</code></pre>
+<pre class="r"><code>Europe.eu.veg &lt;- append_data(Europe.eu,veg.country,key.shp = &quot;name&quot;,key.data = &quot;Country&quot;)
+
+tm_shape(Europe.eu.veg) + 
+  tm_polygons(col=&#39;mean&#39;,palette=&#39;Greens&#39;,n = 10)</code></pre>
+<p><img src="/post/food-consumption-tutorial/2016-10-13-food-consumption-tutorial_files/figure-html/unnamed-chunk-19-1.png" width="1440" /></p>
+</div>
+<div id="interactive-map" class="section level1">
+<h1>Interactive map</h1>
+<p>Tmap has as well an interactive mode. To demonstrate it, we will now add two layers we have used before,‘Jam consumption’ and ‘# individuals surveyed’ to the same interactive map.</p>
+<p>In such a map the user can:</p>
+<ul>
+<li>change background (online) map</li>
+<li>zoom and drag the mp</li>
+<li>select layers to see (Jam consumption,#individuals)</li>
+<li>click on countries to see all information for this country in the shape file</li>
+</ul>
+<pre class="r"><code>tmap_mode(&quot;view&quot;)
+tm_shape(Europe.jam) +
+  tm_polygons(col = &#39;food_mean&#39;,title = &quot;Jam consumption (mg/day)&quot;) +
+tm_shape(Europe.surveyed) +
+  tm_polygons(&quot;numSubjects&quot;,n = 10,title = &quot;# individuals&quot;,palette=&quot;Blues&quot;) +
+  tm_format_Europe_wide()</code></pre>
+<p>As this blog is done with knitr, the interactive map is not shown.</p>
+</div>
+<div id="session-info" class="section level1">
+<h1>Session info</h1>
+<p>The following R library versions were used for this tutorial.</p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.4.1 (2017-06-30)
+## Platform: x86_64-pc-linux-gnu (64-bit)
+## Running under: Arch Linux
+## 
+## Matrix products: default
+## BLAS: /usr/lib/libblas_nehalemp-r0.2.19.so
+## LAPACK: /usr/lib/liblapack.so.3.7.1
+## 
+## locale:
+##  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+##  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+##  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+##  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+##  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+## [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+## 
+## attached base packages:
+## [1] methods   stats     graphics  grDevices utils     datasets  base     
+## 
+## other attached packages:
+##  [1] bindrcpp_0.2      tmaptools_1.2-1   pander_0.6.1     
+##  [4] readxl_1.0.0      knitr_1.17        dplyr_0.7.3.9000 
+##  [7] purrr_0.2.3       readr_1.1.1       tidyr_0.7.1      
+## [10] tibble_1.3.4.9001 ggplot2_2.2.1     tidyverse_1.1.1  
+## [13] tmap_1.10        
+## 
+## loaded via a namespace (and not attached):
+##   [1] colorspace_1.3-2   deldir_0.1-14      class_7.3-14      
+##   [4] gdalUtils_2.0.1.7  leaflet_1.1.0      rgdal_1.2-10      
+##   [7] rprojroot_1.2      satellite_1.0.0    base64enc_0.1-3   
+##  [10] dichromat_2.0-0    lubridate_1.6.0    xml2_1.1.1        
+##  [13] codetools_0.2-15   splines_3.4.1      R.methodsS3_1.7.1 
+##  [16] mnormt_1.5-5       geojsonlint_0.2.0  jsonlite_1.5      
+##  [19] broom_0.4.2        png_0.1-7          R.oo_1.21.0       
+##  [22] rgeos_0.3-23       shiny_1.0.5        compiler_3.4.1    
+##  [25] httr_1.3.1         backports_1.1.0    mapview_2.1.4     
+##  [28] assertthat_0.2.0   Matrix_1.2-11      lazyeval_0.2.0    
+##  [31] htmltools_0.3.6    tools_3.4.1        coda_0.19-1       
+##  [34] gtable_0.2.0       glue_1.1.1         reshape2_1.4.2    
+##  [37] gmodels_2.16.2     V8_1.5             Rcpp_0.12.12      
+##  [40] cellranger_1.1.0   raster_2.5-8       spdep_0.6-15      
+##  [43] gdata_2.18.0       nlme_3.1-131       blogdown_0.1.4    
+##  [46] udunits2_0.13      iterators_1.0.8    crosstalk_1.0.0   
+##  [49] psych_1.7.8        stringr_1.2.0      rvest_0.3.2       
+##  [52] mime_0.5           gtools_3.5.0       XML_3.98-1.9      
+##  [55] LearnBayes_2.15    MASS_7.3-47        scales_0.5.0      
+##  [58] hms_0.3            parallel_3.4.1     expm_0.999-2      
+##  [61] RColorBrewer_1.1-2 yaml_2.1.14        curl_2.8.1        
+##  [64] geosphere_1.5-5    stringi_1.1.5      jsonvalidate_1.0.0
+##  [67] highr_0.6          foreach_1.4.3      e1071_1.6-8       
+##  [70] boot_1.3-20        rlang_0.1.2        pkgconfig_2.0.1   
+##  [73] bitops_1.0-6       evaluate_0.10.1    lattice_0.20-35   
+##  [76] bindr_0.1          sf_0.5-4           labeling_0.3      
+##  [79] htmlwidgets_0.9    tidyselect_0.2.0   osmar_1.1-7       
+##  [82] plyr_1.8.4         magrittr_1.5       bookdown_0.5      
+##  [85] R6_2.2.2           DBI_0.7            pillar_0.0.0.9000 
+##  [88] haven_1.1.0        foreign_0.8-69     units_0.4-6       
+##  [91] RCurl_1.95-4.8     sp_1.2-5           modelr_0.1.1      
+##  [94] rmapshaper_0.3.0   KernSmooth_2.23-15 rmarkdown_1.6     
+##  [97] grid_3.4.1         forcats_0.2.0      digest_0.6.12     
+## [100] classInt_0.1-24    webshot_0.4.1      xtable_1.8-2      
+## [103] httpuv_1.3.5       R.utils_2.5.0      stats4_3.4.1      
+## [106] munsell_0.4.3      viridisLite_0.2.0</code></pre>
+</div>
+<div id="references" class="section level1">
+<h1>References</h1>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p><a href="http://www.efsa.europa.eu/en/supporting/pub/804e" class="uri">http://www.efsa.europa.eu/en/supporting/pub/804e</a><a href="#fnref1">↩</a></p></li>
+<li id="fn2"><p><a href="http://www.efsa.europa.eu/en/food-consumption/comprehensive-database" class="uri">http://www.efsa.europa.eu/en/food-consumption/comprehensive-database</a><a href="#fnref2">↩</a></p></li>
+</ol>
+</div>
