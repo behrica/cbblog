@@ -1,0 +1,197 @@
+---
+title: Calling R from Clojure with rojure
+author: Carsten Behring
+date: '2017-10-04'
+slug: calling-r-from-clojure-with-rojure
+categories: []
+tags:
+  - clojure
+  - R 
+---
+
+
+
+<p>In this short post I will show, how we can call R from Clojure, by using the <a href="https://github.com/behrica/rojure">rojure</a> package.</p>
+<div id="requirements" class="section level1">
+<h1>Requirements</h1>
+<p>At first we need to add rojure to the dependencies of the Clojure project, we work on:</p>
+<pre class="clojure"><code>[rojure &quot;0.2.0&quot;]</code></pre>
+<p>Secondly we need to start an R process on our machine, and install(if not done) and use the “Rserve” package.</p>
+<pre class="r"><code># install.packages(&quot;Rserve&quot;)
+library(Rserve)
+Rserve()
+</code></pre>
+<p>This will start an server process, which the rojure library can connect to and send it R data and code for execution.</p>
+</div>
+<div id="examples" class="section level1">
+<h1>Examples</h1>
+<div id="evaluating-r-code" class="section level2">
+<h2>Evaluating R code</h2>
+<p>This is the simplest usage. We can evaluate arbitrary R code, given as a string:</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(def r (get-r))
+(println (r-eval r &quot;sessionInfo()&quot;))</code></pre>
+<pre><code>## {R.version {platform [x86_64-pc-linux-gnu], arch [x86_64], os [linux-gnu], system [x86_64, linux-gnu], status [], major [3], minor [4.1], year [2017], month [06], day [30], svn rev [72865], language [R], version.string [R version 3.4.1 (2017-06-30)], nickname [Single Candle]}, platform [x86_64-pc-linux-gnu (64-bit)], locale [LC_CTYPE=en_US.UTF-8;LC_NUMERIC=C;LC_TIME=en_US.UTF-8;LC_COLLATE=en_US.UTF-8;LC_MONETARY=en_US.UTF-8;LC_MESSAGES=en_US.UTF-8;LC_PAPER=en_US.UTF-8;LC_NAME=C;LC_ADDRESS=C;LC_TELEPHONE=C;LC_MEASUREMENT=en_US.UTF-8;LC_IDENTIFICATION=C], running [Arch Linux], basePkgs [stats graphics grDevices utils datasets methods base], loadedOnly {compiler {Package [compiler], Version [3.4.1], Priority [base], Title [The R Compiler Package], Author [Luke Tierney &lt;luke-tierney@uiowa.edu&gt;], Maintainer [R Core Team &lt;R-core@r-project.org&gt;], Description [Byte code compiler for R.], License [Part of R 3.4.1], Built [R 3.4.1; ; 2017-09-08 12:26:18 UTC; unix]}}, matprod [default], BLAS [/usr/lib/libblas_nehalemp-r0.2.19.so], LAPACK [/usr/lib/liblapack.so.3.7.1]}</code></pre>
+</div>
+<div id="clojure---r" class="section level2">
+<h2>Clojure -&gt; R</h2>
+<p>Clojure objects, can be set in the R session. This works for:</p>
+<ul>
+<li>sequences / vectors</li>
+<li>core.matrix dataset</li>
+<li>core.matrix matrix</li>
+</ul>
+</div>
+<div id="r-clojure" class="section level2">
+<h2>R-&gt;Clojure</h2>
+<p>Getting any data.frame from R returns it as object of type core.matrix dataset.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m]
+     &#39;[clojure.core.matrix.dataset :as ds]
+
+)
+(def r (get-r))
+(def iris (r-get r &quot;iris&quot;))
+(println &quot;shape: &quot; (m/shape iris))
+(println &quot;column names: &quot; (ds/column-names iris))
+(println &quot;class: &quot; (class iris))
+(println &quot;First 5 of Sepal.Length&quot; (take 5 (ds/column iris &quot;Sepal.Length&quot;)))</code></pre>
+<pre><code>## shape:  [150 5]
+## column names:  [Sepal.Length Sepal.Width Petal.Length Petal.Width Species]
+## class:  clojure.core.matrix.impl.dataset.DataSet
+## First 5 of Sepal.Length (5.1 4.9 4.7 4.6 5.0)</code></pre>
+<p>The same works for matrices, which becomes a data structure on which the functions from clojre.core.matrix can be called.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(def r (get-r))
+(def m (r-eval r &quot;diag(1, 4, 4)&quot;))
+(println &quot;shape: &quot;(m/shape m))
+(println &quot;class &quot; (class m))
+(println (m/pm m))</code></pre>
+<pre><code>## shape:  [4 4]
+## class  clojure.lang.PersistentVector
+## [[1.000 0.000 0.000 0.000]
+##  [0.000 1.000 0.000 0.000]
+##  [0.000 0.000 1.000 0.000]
+##  [0.000 0.000 0.000 1.000]]
+## nil</code></pre>
+<p>The concrete implementation of the matrix class created, depends on the current default, which can be changed by calling “m/set-current-implementation”</p>
+</div>
+</div>
+<div id="using-r-transform-to-trainpredict-a-classifier" class="section level1">
+<h1>Using r-transform to train/predict a classifier</h1>
+<p>In the following example I call the quick start code from R package <a href="https://mlr-org.github.io/mlr-tutorial/release/html/">mlr</a> from Clojure for training a classifier.</p>
+<p>The “iris” data comes from “incanter/get-dataset”, gets written into the R session, and then we call the mlr R functions from Clojure.</p>
+<p>I demonstrate two version of the same R code, by using either “with-r-eval” “r-transform”</p>
+<div id="with-with-r-eval" class="section level2">
+<h2>with with-r-eval</h2>
+<p>Here the R code is given as sequence of strings.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(require &#39;[incanter.core :as ic])
+(require &#39;[incanter.datasets :as id])
+
+(def r (get-r))
+(def iris-ds (id/get-dataset :iris))
+; change col names, mlr package des not like &quot;:&quot; in variables         
+(def iris-ds (ic/rename-cols {:Sepal.Length &quot;Sepal.Length&quot;
+                             :Sepal.Width &quot;Sepal.Width&quot;
+                             :Petal.Length &quot;Petal.Length&quot;
+                             :Petal.Width &quot;Petal.Width&quot;
+                             :Species &quot;Species&quot;
+                              } iris-ds))
+
+(r-set! r &quot;iris&quot; iris-ds)
+
+ (println (with-r-eval r
+  &quot;library(mlr)&quot;
+  &quot;task = makeClassifTask(data = iris, target = &#39;Species&#39;)&quot;
+  &quot;lrn = makeLearner(&#39;classif.lda&#39;)&quot;
+  &quot;n = nrow(iris)&quot;
+  &quot;train.set = sample(n, size = 2/3*n)&quot;
+  &quot;test.set = setdiff(1:n, train.set)&quot;
+  &quot;model = train(lrn, task, subset = train.set)&quot;
+  &quot;pred = predict(model, task = task, subset = test.set)&quot;
+  &quot;performance(pred, measures = list(mmce, acc))&quot;
+  ))
+</code></pre>
+<pre><code>## [0.02 0.98]</code></pre>
+</div>
+<div id="using-r-transform" class="section level2">
+<h2>Using r-transform</h2>
+<p>The same can be achieved by calling r-transform and giving it a R script to execute.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(require &#39;[incanter.core :as ic])
+(require &#39;[incanter.datasets :as id])
+
+(def r (get-r))
+(def iris-ds (id/get-dataset :iris))
+; change col names, mlr package des not like &quot;:&quot; in variables         
+(def iris-ds (ic/rename-cols {:Sepal.Length &quot;Sepal.Length&quot;
+                             :Sepal.Width &quot;Sepal.Width&quot;
+                             :Petal.Length &quot;Petal.Length&quot;
+                             :Petal.Width &quot;Petal.Width&quot;
+                             :Species &quot;Species&quot;
+                              } iris-ds))
+
+        
+(println (r-transform r iris-ds &quot;mlr.R&quot;))</code></pre>
+<pre><code>## [0.04 0.96]</code></pre>
+<p>The R code in ‘mlr.R’ code looks likes this: (Notice the usage of ‘in_’ and ‘Out_’ for input and output data.frames.)</p>
+<pre class="r"><code>library(mlr)
+task = makeClassifTask(data = in_, target = &quot;Species&quot;)
+lrn = makeLearner(&quot;classif.lda&quot;)
+n = nrow(in_)
+train.set = sample(n, size = 2/3*n)
+test.set = setdiff(1:n, train.set)
+model = train(lrn, task, subset = train.set)
+pred = predict(model, task = task, subset = test.set)
+out_ &lt;- performance(pred, measures = list(mmce, acc))</code></pre>
+</div>
+<div id="transforming-of-s3-classes" class="section level2">
+<h2>Transforming of S3 classes</h2>
+<p>R functions which return S3 objects gets returned to Clojure as maps.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(def r (get-r))
+(println (r-eval r &quot;sessionInfo()&quot;))</code></pre>
+<pre><code>## {R.version {platform [x86_64-pc-linux-gnu], arch [x86_64], os [linux-gnu], system [x86_64, linux-gnu], status [], major [3], minor [4.1], year [2017], month [06], day [30], svn rev [72865], language [R], version.string [R version 3.4.1 (2017-06-30)], nickname [Single Candle]}, platform [x86_64-pc-linux-gnu (64-bit)], locale [LC_CTYPE=en_US.UTF-8;LC_NUMERIC=C;LC_TIME=en_US.UTF-8;LC_COLLATE=en_US.UTF-8;LC_MONETARY=en_US.UTF-8;LC_MESSAGES=en_US.UTF-8;LC_PAPER=en_US.UTF-8;LC_NAME=C;LC_ADDRESS=C;LC_TELEPHONE=C;LC_MEASUREMENT=en_US.UTF-8;LC_IDENTIFICATION=C], running [Arch Linux], basePkgs [stats graphics grDevices utils datasets methods base], loadedOnly {compiler {Package [compiler], Version [3.4.1], Priority [base], Title [The R Compiler Package], Author [Luke Tierney &lt;luke-tierney@uiowa.edu&gt;], Maintainer [R Core Team &lt;R-core@r-project.org&gt;], Description [Byte code compiler for R.], License [Part of R 3.4.1], Built [R 3.4.1; ; 2017-09-08 12:26:18 UTC; unix]}}, matprod [default], BLAS [/usr/lib/libblas_nehalemp-r0.2.19.so], LAPACK [/usr/lib/liblapack.so.3.7.1]}</code></pre>
+</div>
+<div id="clojure---r-1" class="section level2">
+<h2>Clojure -&gt; R</h2>
+<p>Clojure objects, can be set in the R session. This works for:</p>
+<ul>
+<li>sequences / vectors</li>
+<li>core.matrix dataset</li>
+<li>core.matrix matrix</li>
+</ul>
+</div>
+<div id="r-clojure-1" class="section level2">
+<h2>R-&gt;Clojure</h2>
+<p>Getting any data.frame from R returns it as object of type core.matrix dataset.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(use &#39;[clojure.core.matrix :as m])
+(def r (get-r))
+(def iris (r-get r &quot;iris&quot;))
+(println &quot;shape: &quot; (m/shape iris))
+(println &quot;class: &quot; (class iris))</code></pre>
+<pre><code>## shape:  [150 5]
+## class:  clojure.core.matrix.impl.dataset.DataSet</code></pre>
+<p>The same works for matrices, which becomes a data structure on which the functions from clojre.core.matrix can be called.</p>
+<p>S3 classes gets converted to maps-of-maps, for example the class “lm” produced by the R function “lm”.</p>
+<pre class="lein"><code>(use &#39;(rojure core))
+(def r (get-r))
+(println (keys (r-eval r &quot;lm(Fertility ~ . , data = swiss)&quot;)))
+
+(println (get (r-eval r &quot;lm(Fertility ~ . , data = swiss)&quot;)
+     &quot;coefficients&quot;))</code></pre>
+<pre><code>## (coefficients residuals effects rank fitted.values assign qr df.residual xlevels call terms model)
+## [66.91518167896871 -0.1721139709414554 -0.2580082398347245 -0.8709400629394237 0.10411533074376746 1.0770481406909869]</code></pre>
+</div>
+</div>
+<div id="anecdote" class="section level1">
+<h1>Anecdote</h1>
+<p>This blogs is written in R markdown, containing executable code blocks written in Clojure which call again R….. So R calls Clojure calls R ….</p>
+</div>

@@ -1,0 +1,244 @@
+---
+title: Calling R from Clojure with rojure
+author: Carsten Behring
+date: '2017-10-04'
+slug: calling-r-from-clojure-with-rojure
+categories: []
+tags:
+  - clojure
+  - R 
+---
+
+```{r, echo=F}
+knitr::opts_chunk$set(cache=T)
+
+``` 
+In this short post I will show, how we can call R from Clojure, by using the [rojure](https://github.com/behrica/rojure) package.
+
+
+# Requirements 
+
+At first we need to add rojure to the dependencies of the Clojure project, we work on:
+
+``` clojure
+[rojure "0.2.0"]
+```
+
+Secondly we need to start an R process on our machine, and install(if not done)  and use the "Rserve" package.
+
+
+``` R
+# install.packages("Rserve")
+library(Rserve)
+Rserve()
+
+```
+This will start an server process, which the rojure library can connect to and send it R data and code for execution.
+
+# Examples
+
+## Evaluating R code
+
+This is the simplest usage.
+We can evaluate arbitrary R code, given as a string:
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(def r (get-r))
+(println (r-eval r "sessionInfo()"))
+```
+
+## Clojure -> R
+
+Clojure objects, can be set in the R session. This works 
+for:
+
+* sequences / vectors
+* core.matrix dataset
+* core.matrix matrix
+
+
+
+## R->Clojure 
+
+Getting any data.frame from R returns it as object of type core.matrix dataset.
+
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m]
+     '[clojure.core.matrix.dataset :as ds]
+
+)
+(def r (get-r))
+(def iris (r-get r "iris"))
+(println "shape: " (m/shape iris))
+(println "column names: " (ds/column-names iris))
+(println "class: " (class iris))
+(println "First 5 of Sepal.Length" (take 5 (ds/column iris "Sepal.Length")))
+```
+
+
+The same works for matrices, which becomes a data structure on which the functions from 
+clojre.core.matrix can be called.
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(def r (get-r))
+(def m (r-eval r "diag(1, 4, 4)"))
+(println "shape: "(m/shape m))
+(println "class " (class m))
+(println (m/pm m))
+```
+
+The concrete implementation of the matrix class created, depends on the current default,
+which can be changed by calling "m/set-current-implementation"
+
+
+# Using r-transform to train/predict a classifier 
+
+In the following example I call the quick start code from R  package [mlr](https://mlr-org.github.io/mlr-tutorial/release/html/) from Clojure for training a classifier.
+
+The "iris" data comes from "incanter/get-dataset", gets written into the R session, 
+and then we call the mlr R functions from Clojure.
+
+I demonstrate two version of the same R code, by using either "with-r-eval" "r-transform"
+
+## with with-r-eval
+
+Here the R code is given as sequence of strings.
+
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(require '[incanter.core :as ic])
+(require '[incanter.datasets :as id])
+
+(def r (get-r))
+(def iris-ds (id/get-dataset :iris))
+; change col names, mlr package des not like ":" in variables     	  
+(def iris-ds (ic/rename-cols {:Sepal.Length "Sepal.Length"
+                             :Sepal.Width "Sepal.Width"
+                             :Petal.Length "Petal.Length"
+                             :Petal.Width "Petal.Width"
+                             :Species "Species"
+                              } iris-ds))
+
+(r-set! r "iris" iris-ds)
+
+ (println (with-r-eval r
+  "library(mlr)"
+  "task = makeClassifTask(data = iris, target = 'Species')"
+  "lrn = makeLearner('classif.lda')"
+  "n = nrow(iris)"
+  "train.set = sample(n, size = 2/3*n)"
+  "test.set = setdiff(1:n, train.set)"
+  "model = train(lrn, task, subset = train.set)"
+  "pred = predict(model, task = task, subset = test.set)"
+  "performance(pred, measures = list(mmce, acc))"
+  ))
+
+
+```
+
+## Using r-transform
+
+The same can be achieved by calling r-transform and giving it a R script to execute.
+
+
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(require '[incanter.core :as ic])
+(require '[incanter.datasets :as id])
+
+(def r (get-r))
+(def iris-ds (id/get-dataset :iris))
+; change col names, mlr package des not like ":" in variables     	  
+(def iris-ds (ic/rename-cols {:Sepal.Length "Sepal.Length"
+                             :Sepal.Width "Sepal.Width"
+                             :Petal.Length "Petal.Length"
+                             :Petal.Width "Petal.Width"
+                             :Species "Species"
+                              } iris-ds))
+
+		
+(println (r-transform r iris-ds "mlr.R"))
+``` 
+
+The R code in 'mlr.R' code looks likes this:
+(Notice the usage of 'in_' and 'Out_' for input and output data.frames.)
+
+
+``` R
+library(mlr)
+task = makeClassifTask(data = in_, target = "Species")
+lrn = makeLearner("classif.lda")
+n = nrow(in_)
+train.set = sample(n, size = 2/3*n)
+test.set = setdiff(1:n, train.set)
+model = train(lrn, task, subset = train.set)
+pred = predict(model, task = task, subset = test.set)
+out_ <- performance(pred, measures = list(mmce, acc))
+```
+
+
+## Transforming of S3 classes
+
+
+R functions which return S3 objects gets returned to Clojure as maps.
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(def r (get-r))
+(println (r-eval r "sessionInfo()"))
+```
+
+## Clojure -> R
+
+Clojure objects, can be set in the R session. This works 
+for:
+
+* sequences / vectors
+* core.matrix dataset
+* core.matrix matrix
+
+
+## R->Clojure 
+
+Getting any data.frame from R returns it as object of type core.matrix dataset.
+
+```{r engine="lein"}
+(use '(rojure core))
+(use '[clojure.core.matrix :as m])
+(def r (get-r))
+(def iris (r-get r "iris"))
+(println "shape: " (m/shape iris))
+(println "class: " (class iris))
+```
+
+
+The same works for matrices, which becomes a data structure on which the functions from 
+clojre.core.matrix can be called.
+
+S3 classes gets converted to maps-of-maps, for example the class "lm" produced by the R function "lm".
+
+```{r engine="lein"}
+(use '(rojure core))
+(def r (get-r))
+(println (keys (r-eval r "lm(Fertility ~ . , data = swiss)")))
+
+(println (get (r-eval r "lm(Fertility ~ . , data = swiss)")
+     "coefficients"))
+```
+
+
+# Anecdote
+
+This blogs is written in R markdown, containing executable code blocks written in Clojure which call again R.....
+So R calls Clojure calls R ....
