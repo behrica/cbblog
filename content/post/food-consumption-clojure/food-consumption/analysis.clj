@@ -3,11 +3,7 @@
 ;; **
 ;;; # Gorilla REPL
 ;;; 
-;;; Welcome to gorilla :-)
 ;;; 
-;;; Shift + enter evaluates code. Hit alt+g twice in quick succession or click the menu icon (upper-right corner) for more commands ...
-;;; 
-;;; It's a good habit to run each worksheet in its own namespace: feel free to use the declaration we've provided below if you'd like.
 ;; **
 
 ;; @@
@@ -94,137 +90,6 @@
 ;; @@
 ;; =>
 ;;; {"type":"html","content":"<span class='clj-var'>#&#x27;arrogant-mountain/couscous</span>","value":"#'arrogant-mountain/couscous"}
-;; <=
-
-;; @@
-(->> (map #(select-keys % [:Country 
-                           :Survey
-                           (keyword "Pop Class")
-                           (keyword "Foodex L4") 
-                           (keyword "Nr Subjects") 
-                           :Mean] ) couscous)
-     pp/print-table)
-;; @@
-;; ->
-;;; 
-;;; |       :Country |                                                                                    :Survey |      :Pop Class | :Foodex L4 | :Nr Subjects | :Mean |
-;;; |----------------+--------------------------------------------------------------------------------------------+-----------------+------------+--------------+-------|
-;;; |        Austria |                                      Austrian Study on Nutritional Status 2010-12 - Adults |          Adults |   Couscous |          308 |  1.28 |
-;;; |        Austria |                                      Austrian Study on Nutritional Status 2010-12 - Adults |         Elderly |   Couscous |           67 |     0 |
-;;; |        Austria |                                      Austrian Study on Nutritional Status 2010-12 - Adults |    Very elderly |   Couscous |           25 |     0 |
-;;; |        Austria |                                    Austrian Study on Nutritional Status 2010-12 - Children |  Other children |   Couscous |          128 |     0 |
-;;; |        Austria |                                    Austrian Study on Nutritional Status 2010-12 - Children |     Adolescents |   Couscous |          237 |  0.16 |
-;;; |        Belgium |                                                                         Diet National 2004 |     Adolescents |   Couscous |          576 |  1.47 |
-;;; |        Belgium |                                                                         Diet National 2004 |          Adults |   Couscous |         1292 |  1.22 |
-;;; |        Belgium |                                                                         Diet National 2004 |         Elderly |   Couscous |          511 |  0.37 |
-;;; |        Belgium |                                                                         Diet National 2004 |    Very elderly |   Couscous |          704 |  0.16 |
-;;; |        Belgium |                                                                          Regional Flanders |        Toddlers |   Couscous |           36 |     0 |
-;;; |        Belgium |                                                                          Regional Flanders |  Other children |   Couscous |          625 |     0 |
-;;; |       Bulgaria |                                                                                 NUTRICHILD |         Infants |   Couscous |          859 |     0 |
-;;; |       Bulgaria |                                                                                 NUTRICHILD |        Toddlers |   Couscous |          428 |     0 |
-;;; |       Bulgaria |                                                                                 NUTRICHILD |  Other children |   Couscous |          433 |     0 |
-;;; |         Cyprus |                                                                                Childhealth |     Adolescents |   Couscous |          303 |     0 |
-;;; | Czech Republic |                                                     Czech National Food Consumption Survey |  Other children |   Couscous |          389 |     0 |
-;;; | Czech Republic |                                                     Czech National Food Consumption Survey |     Adolescents |   Couscous |          298 |     0 |
-;;; | Czech Republic |                                                     Czech National Food Consumption Survey |          Adults |   Couscous |         1666 |     0 |
-;;; |        Germany |                         Consumption Survey of Food Intake among Infants and Young Children |         Infants |   Couscous |          159 |     0 |
-;;; |        Germany |                         Consumption Survey of Food Intake among Infants and Young Children |        Toddlers |   Couscous |          348 |  0.05 |
-;;; |        Germany |                         Consumption Survey of Food Intake among Infants and Young Children |  Other children |   Couscous |          293 |  0.02 |
-;;; |        Germany | Dortmund Nutritional and Anthropometrical Longitudinally Designed (DONALD) Study 2006-2008 |        Toddlers |   Couscous |          261 |     0 |
-;;; |        Germany | Dortmund Nutritional and Anthropometrical Longitudinally Designed (DONALD) Study 2006-2008 |  Other children |   Couscous |          660 |     0 |
-;;; |        Germany |                                                    Eating Study as a KiGGS Module (EsKiMo) |  Other children |   Couscous |          835 |     0 |
-;;; |        Germany |                                                    Eating Study as a KiGGS Module (EsKiMo) |     Adolescents |   Couscous |          393 |     0 |
-;;; |        Germany |                                                               National Nutrition Survey II |     Adolescents |   Couscous |         1011 |     0 |
-;;; |        Germany |                                                               National Nutrition Survey II |          Adults |   Couscous |        10419 |  0.07 |
-;;; |        Germany |                                                               National Nutrition Survey II |         Elderly |   Couscous |         2006 |     0 |
-;;; |        Germany |                                                               National Nutrition Survey II |    Very elderly |   Couscous |          490 |     0 |
-;;; |        Denmark |                                                                      Danish Dietary Survey |  Other children |   Couscous |          490 |     0 |
-;;; |        Denmark |                                                                      Danish Dietary Survey |     Adolescents |   Couscous |          479 |     0 |
-;;; |        Denmark |                                                                      Danish Dietary Survey |          Adults |   Couscous |         2822 |     0 |
-;;; |        Denmark |                                                                      Danish Dietary Survey |         Elderly |   Couscous |          309 |     0 |
-;;; |        Denmark |                                                                      Danish Dietary Survey |    Very elderly |   Couscous |           20 |     0 |
-;;; |        Denmark |                  Danish National Dietary survey among infants and young children 2006-2007 |         Infants |   Couscous |          826 |     0 |
-;;; |        Denmark |                  Danish National Dietary survey among infants and young children 2006-2007 |        Toddlers |   Couscous |          917 |     0 |
-;;; |        Denmark |                                               The Danish National Dietary survey 2005-2008 |  Other children |   Couscous |          298 |     0 |
-;;; |        Denmark |                                               The Danish National Dietary survey 2005-2008 |     Adolescents |   Couscous |          377 |     0 |
-;;; |        Denmark |                                               The Danish National Dietary survey 2005-2008 |          Adults |   Couscous |         1739 |     0 |
-;;; |        Denmark |                                               The Danish National Dietary survey 2005-2008 |         Elderly |   Couscous |          274 |     0 |
-;;; |        Denmark |                                               The Danish National Dietary survey 2005-2008 |    Very elderly |   Couscous |           12 |     0 |
-;;; |          Spain |                                                                 Encuesta de nutrición 2005 |  Other children |   Couscous |          399 |     0 |
-;;; |          Spain |                                                                 Encuesta de nutrición 2005 |     Adolescents |   Couscous |          651 |     0 |
-;;; |          Spain |                                    Food patterns of Spanish schoolchildren and adolescents |        Toddlers |   Couscous |           17 |     0 |
-;;; |          Spain |                                    Food patterns of Spanish schoolchildren and adolescents |  Other children |   Couscous |          156 |     0 |
-;;; |          Spain |                                    Food patterns of Spanish schoolchildren and adolescents |     Adolescents |   Couscous |          209 |     0 |
-;;; |          Spain |                                       Spanish Agency for Food Safety (AESAN) - FIAB Survey |     Adolescents |   Couscous |           86 |     0 |
-;;; |          Spain |                                       Spanish Agency for Food Safety (AESAN) - FIAB Survey |          Adults |   Couscous |          981 |     0 |
-;;; |          Spain |                                              Spanish Agency for Food Safety (AESAN) Survey |          Adults |   Couscous |          410 |     0 |
-;;; |        Finland |                        Diabetes Prediction and Prevention Nutrition Study (DIPP) 2001-2009 |         Infants |   Couscous |          500 |     0 |
-;;; |        Finland |                        Diabetes Prediction and Prevention Nutrition Study (DIPP) 2001-2009 |        Toddlers |   Couscous |          500 |     0 |
-;;; |        Finland |                        Diabetes Prediction and Prevention Nutrition Study (DIPP) 2001-2009 |  Other children |   Couscous |          750 |  0.03 |
-;;; |        Finland |                       Diabetes Prediction and Prevention Nutrition Study (DIPP) 2003 -2006 |        Toddlers |   Couscous |          497 |     0 |
-;;; |        Finland |                       Diabetes Prediction and Prevention Nutrition Study (DIPP) 2003 -2006 |  Other children |   Couscous |          933 |     0 |
-;;; |        Finland |                                                               National FINDIET 2012 Survey |          Adults |   Couscous |         1295 |  0.16 |
-;;; |        Finland |                                                               National FINDIET 2012 Survey |         Elderly |   Couscous |          413 |  0.01 |
-;;; |        Finland |                                                                   National Findiet Surveys |          Adults |   Couscous |         1575 |  0.08 |
-;;; |        Finland |                                                                   National Findiet Surveys |         Elderly |   Couscous |          463 |     0 |
-;;; |        Finland |                                         Nutrition and wellbeing of secondary school pupils |     Adolescents |   Couscous |          306 |  0.06 |
-;;; |        Finland |                                    Special Turku Coronary Risk Factor Intervention Project |  Other children |   Couscous |          250 |     0 |
-;;; |         France |                                        Individual and national study on food consumption 2 |  Other children |   Couscous |          482 |  4.82 |
-;;; |         France |                                        Individual and national study on food consumption 2 |     Adolescents |   Couscous |          973 |  6.86 |
-;;; |         France |                                        Individual and national study on food consumption 2 |          Adults |   Couscous |         2276 |  5.87 |
-;;; |         France |                                        Individual and national study on food consumption 2 |         Elderly |   Couscous |          264 |  2.59 |
-;;; |         France |                                        Individual and national study on food consumption 2 |    Very elderly |   Couscous |           84 |  2.88 |
-;;; | United Kingdom |                              Diet and Nutrition Survey of Infants and Young Children, 2011 |         Infants |   Couscous |         1369 |  0.26 |
-;;; | United Kingdom |                              Diet and Nutrition Survey of Infants and Young Children, 2011 |        Toddlers |   Couscous |         1314 |  0.55 |
-;;; | United Kingdom |                                                         National Diet and Nutrition Survey |          Adults |   Couscous |         1724 |  0.47 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |        Toddlers |   Couscous |          185 |  0.73 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |  Other children |   Couscous |          651 |   0.4 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |     Adolescents |   Couscous |          666 |   0.5 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |          Adults |   Couscous |         1266 |  1.02 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |         Elderly |   Couscous |          166 |  0.53 |
-;;; | United Kingdom |                                             National Diet and Nutrition Survey - Years 1-3 |    Very elderly |   Couscous |          139 |  0.33 |
-;;; |         Greece |                                                                          Diet Lactation GR | Lactating women |   Couscous |           65 |     0 |
-;;; |         Greece |                                                                             Regional Crete |  Other children |   Couscous |          838 |     0 |
-;;; |        Hungary |                                                                         National Repr Surv |          Adults |   Couscous |         1074 |     0 |
-;;; |        Hungary |                                                                         National Repr Surv |         Elderly |   Couscous |          206 |     0 |
-;;; |        Hungary |                                                                         National Repr Surv |    Very elderly |   Couscous |           80 |     0 |
-;;; |        Ireland |                                                            National Adult Nutrition Survey |          Adults |   Couscous |         1274 |  0.22 |
-;;; |        Ireland |                                                            National Adult Nutrition Survey |         Elderly |   Couscous |          149 |  0.26 |
-;;; |        Ireland |                                                            National Adult Nutrition Survey |    Very elderly |   Couscous |           77 |     0 |
-;;; |        Ireland |                                                North/South Ireland Food Consumption Survey |          Adults |   Couscous |          958 |   0.1 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |         Infants |   Couscous |           16 |     0 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |        Toddlers |   Couscous |           36 |     0 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |  Other children |   Couscous |          193 |     0 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |     Adolescents |   Couscous |          247 |     0 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |          Adults |   Couscous |         2313 |  0.18 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |         Elderly |   Couscous |          290 |  0.23 |
-;;; |          Italy |                                Italian National Food Consumption Survey INRAN-SCAI 2005-06 |    Very elderly |   Couscous |          228 |     0 |
-;;; |         Latvia |                                         Dietary survey on pregnant women in Latvia (LGPPP) |  Pregnant women |   Couscous |         1002 |     0 |
-;;; |         Latvia |                                                                    National Dietary Survey |  Other children |   Couscous |          187 |     0 |
-;;; |         Latvia |                                                                    National Dietary Survey |     Adolescents |   Couscous |          453 |     0 |
-;;; |         Latvia |                                                                    National Dietary Survey |          Adults |   Couscous |         1271 |     0 |
-;;; |    Netherlands |                                                                       DNFCS-Young-Children |        Toddlers |   Couscous |          322 |     0 |
-;;; |    Netherlands |                                                                       DNFCS-Young-Children |  Other children |   Couscous |          957 |  0.05 |
-;;; |    Netherlands |                                                         Dutch National Dietary Survey 2003 |          Adults |   Couscous |          750 |   0.1 |
-;;; |    Netherlands |                                         Dutch National food consumption survey 2007 - 2010 |  Other children |   Couscous |          447 |  0.02 |
-;;; |    Netherlands |                                         Dutch National food consumption survey 2007 - 2010 |     Adolescents |   Couscous |         1142 |  0.03 |
-;;; |    Netherlands |                                         Dutch National food consumption survey 2007 - 2010 |          Adults |   Couscous |         2057 |  0.15 |
-;;; |    Netherlands |                                         Dutch National food consumption survey 2007 - 2010 |         Elderly |   Couscous |          173 |  0.11 |
-;;; |    Netherlands |                                     Dutch National Food Consumption Surveys - Older Adults |         Elderly |   Couscous |          289 |  0.06 |
-;;; |    Netherlands |                                     Dutch National Food Consumption Surveys - Older Adults |    Very elderly |   Couscous |          450 |  0.04 |
-;;; |        Romania |                                                                         Dieta Pilot Adults |          Adults |   Couscous |         1254 |  0.11 |
-;;; |        Romania |                                                                         Dieta Pilot Adults |         Elderly |   Couscous |           83 |     0 |
-;;; |        Romania |                                                                         Dieta Pilot Adults |    Very elderly |   Couscous |           45 |     0 |
-;;; |         Sweden |                                                               National Food Administration |  Other children |   Couscous |         1473 |  0.43 |
-;;; |         Sweden |                                                               National Food Administration |     Adolescents |   Couscous |         1018 |  0.32 |
-;;; |         Sweden |                                        Swedish National Dietary Survey - RIKSMATEN 1997-98 |          Adults |   Couscous |         1210 |  0.13 |
-;;; |         Sweden |                                 Swedish National Dietary Survey - Riksmaten adults 2010-11 |          Adults |   Couscous |         1430 |  0.19 |
-;;; |         Sweden |                                 Swedish National Dietary Survey - Riksmaten adults 2010-11 |         Elderly |   Couscous |          295 |  0.16 |
-;;; |         Sweden |                                 Swedish National Dietary Survey - Riksmaten adults 2010-11 |    Very elderly |   Couscous |           72 |     0 |
-;;; 
-;; <-
-;; =>
-;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
 ;; <=
 
 ;; @@
